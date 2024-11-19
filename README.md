@@ -14,8 +14,7 @@
 
 ```bash
 pip install podcast_tts
-```  
-
+```
 
 ## Usage
 
