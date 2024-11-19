@@ -1,0 +1,3 @@
+ChatTTS==0.2.1
+inflect==7.4.0
+g2p-en==2.1.0
