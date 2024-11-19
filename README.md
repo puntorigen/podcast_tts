@@ -14,13 +14,14 @@
 
 ```bash
 pip install podcast_tts
-``` 
+```  
+
 
 ## Usage
 
 ### Generating Audio for a Single Speaker
 
-```python
+```python 
 import asyncio
 from podcast_tts.podcast_tts import PodcastTTS
 
@@ -30,11 +31,11 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-```
+``` 
 
 ### Generating a Podcast Dialogue
 
-```python
+```python 
 import asyncio
 from podcast_tts.podcast_tts import PodcastTTS
 
@@ -49,4 +50,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-```
+``` 
