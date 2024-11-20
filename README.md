@@ -1,15 +1,18 @@
 # Podcast TTS
 
-`podcast_tts` is a Python package for generating high-quality Text-to-Speech (TTS) audio for podcasts and dialogues. It supports multiple speakers, channel-specific playback (left, right, both), and normalization of audio volume.
+`podcast_tts` is a Python library for generating podcasts and dialogues using text-to-speech (TTS). It supports multiple speakers, background music, and precise audio mixing for professional-quality results.
 
 ## Features
 
+- **Multi-Speaker Support**: Generate dialogues with distinct speaker profiles.
+- **Premade Voices**: Use premade speaker profiles (male1, male2, female2) included with the library or create custom profiles.
 - **Dynamic Speaker Generation**: Automatically generates new speaker profiles if the specified speaker does not exist, saving the profiles in the `voices` subfolder for future use.
 - **Consistent Role Assignment**: Ensures consistency by assigning and reusing speaker profiles based on the speaker name.
-- **Load Custom Speaker Profiles**: Supports loading any speaker profile simply by specifying its name.
 - **Channel-Specific Playback**: Allows audio to be played on the left, right, or both channels for spatial separation.
-- **Normalized Audio Volume**: Normalizes the audio for consistent playback volume.
-- **Text Cleaning and Splitting**: Automatically cleans and splits input text into manageable chunks for TTS generation.
+- **Text Normalization**: Automatically normalize text, handle contractions, and format special cases.
+- **Background Music Integration**: Add background music with fade-in/out and volume control.
+- **MP3 and URL Support**: Use local MP3/WAV files or download music from a URL with caching.
+- **Output Formats**: Save generated audio as WAV or MP3 files.
 
 
 ## Installation
@@ -24,34 +27,75 @@ pip install podcast_tts
 
 ```python 
 import asyncio
-from podcast_tts.podcast_tts import PodcastTTS
+from podcast_tts import PodcastTTS
 
 async def main():
     tts = PodcastTTS(speed=5)
-    await tts.generate_wav("Hello, welcome to our podcast!", "Speaker1", "output.wav")
+    await tts.generate_wav(
+        text="Hello! Welcome to our podcast.",
+        speaker="male1",
+        filename="output_audio.wav",
+        channel="both"
+    )
 
 if __name__ == "__main__":
     asyncio.run(main())
 ``` 
 
-### Generating a Podcast Dialogue
+### Example: Generating a Podcast with Music
+
+The generate_podcast method combines dialogue and background music for a seamless podcast production.
 
 ```python 
 import asyncio
-from podcast_tts.podcast_tts import PodcastTTS
+from podcast_tts import PodcastTTS
 
 async def main():
     tts = PodcastTTS(speed=5)
+
+    # Define speakers and text
     texts = [
-        {"Host": ["Welcome to the podcast, where we talk about AI trends.", "left"]},
-        {"Guest": ["Thanks for having me! AI is such an exciting field.", "right"]},
-        {"Host": ["Let's dive into the latest developments."]},  # Defaults to both channels
+        {"male1": ["Welcome to the podcast!", "both"]},
+        {"female2": ["Today, we discuss AI advancements.", "left"]},
+        {"male2": ["Don't miss our exciting updates.", "right"]},
     ]
-    await tts.generate_dialog_wav(texts, "podcast_dialog.wav")
+
+    # Define background music (local file or URL)
+    music_config = ["https://example.com/background_music.mp3", 10, 3, 0.3]
+
+    # Generate the podcast
+    output_file = await tts.generate_podcast(
+        texts=texts,
+        music=music_config,
+        filename="podcast_with_music.mp3",
+        pause_duration=0.5,
+        normalize=True
+    )
+
+    print(f"Podcast saved to: {output_file}")
 
 if __name__ == "__main__":
     asyncio.run(main())
-``` 
+```
+
+### Music Configuration:
+
+- [file/url, full_volume_duration, fade_duration, target_volume]
+    - **file/url**: Path to a local MP3/WAV file or a URL to download.
+    - **full_volume_duration**: Time (seconds) at full volume before dialogue starts and after ends.
+    - **fade_duration**: Time (seconds) for fade-in/out effects.
+    - **target_volum**e: Volume level (0.0 to 1.0) during dialogue playback.
+
+## Premade Voices
+
+PodcastTTS includes the following premade speaker profiles:
+
+- male1
+- male2
+- female2
+
+These profiles are included in the package's **default_voices** directory and can be used without additional setup.
+
 
 ## Dynamic Speaker Generation
 
@@ -66,8 +110,7 @@ texts = [
 # If "Narrator" or "Expert" profiles do not exist, they will be generated dynamically.
 ```
 
-The profiles are saved in the voices directory and reused automatically if the same speaker is used in the future.
-
+The profiles are saved in the script's voices directory and reused automatically if the same speaker is used in the future for consistency.
 
 ## Loading Existing Speaker Profiles
 
