@@ -22,7 +22,7 @@ async def main():
     ]
 
     # Generate the dialog as a single audio file
-    await tts.generate_dialog_wav(texts, "realistic_podcast_dialog.wav")
+    await tts.generate_dialog_wav(texts, "example-dialog.wav")
 
 if __name__ == "__main__":
     asyncio.run(main())

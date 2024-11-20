@@ -24,7 +24,7 @@ async def main():
     await tts.generate_podcast(
         texts, 
         music=["music1.mp3", 10, 3, 0.3], 
-        filename="podcast-example.mp3"
+        filename="example-podcast.mp3"
     )
 
 if __name__ == "__main__":
