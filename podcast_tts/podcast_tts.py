@@ -397,18 +397,27 @@ class PodcastTTS:
             resampler = torchaudio.transforms.Resample(orig_freq=music_sample_rate, new_freq=dialog_sample_rate)
             music_waveform = resampler(music_waveform)
 
-        # Make both waveforms stereo if needed
-        if dialog_waveform.size(0) == 1:
-            dialog_waveform = torch.cat([dialog_waveform, dialog_waveform], dim=0)
+        # Ensure music is stereo
         if music_waveform.size(0) == 1:
             music_waveform = torch.cat([music_waveform, music_waveform], dim=0)
 
-        dialog_length = dialog_waveform.size(1) / dialog_sample_rate
+        # Repeat the music if it's shorter than the required duration
+        dialog_samples = dialog_waveform.size(1)
+        total_needed_length = dialog_samples + int((full_volume_duration + fade_duration) * dialog_sample_rate)
+        while music_waveform.size(1) < total_needed_length:
+            music_waveform = torch.cat([music_waveform, music_waveform], dim=1)
+
+        # Trim the music to the exact required length
+        music_waveform = music_waveform[:, :total_needed_length]
+
+        # Ensure dialog is stereo
+        if dialog_waveform.size(0) == 1:
+            dialog_waveform = torch.cat([dialog_waveform, dialog_waveform], dim=0)
+
         fade_samples = int(fade_duration * dialog_sample_rate)
         full_volume_samples = int(full_volume_duration * dialog_sample_rate)
 
         # Prepare music with fade in, fade out, and volume adjustments
-        music_length = music_waveform.size(1)
         adjusted_music = torch.zeros_like(music_waveform)
 
         # 1. Fade in from 0% to 100% for the first fade_duration
@@ -423,25 +432,26 @@ class PodcastTTS:
         # 3. Fade out to target_volume during the next fade_duration (while dialog starts)
         fade_to_target = torch.linspace(1, target_volume, fade_samples)
         start_dialog = fade_samples + full_volume_samples
-        adjusted_music[:, start_dialog - fade_samples:start_dialog] = (
-            music_waveform[:, start_dialog - fade_samples:start_dialog] * fade_to_target
+        fade_out_end = start_dialog
+        adjusted_music[:, fade_out_end - fade_samples:fade_out_end] = (
+            music_waveform[:, fade_out_end - fade_samples:fade_out_end] * fade_to_target
         )
 
         # 4. Start the dialog and keep music at target_volume
-        dialog_samples = int(dialog_length * dialog_sample_rate)
-        adjusted_music[:, start_dialog:start_dialog + dialog_samples] = (
-            music_waveform[:, start_dialog:start_dialog + dialog_samples] * target_volume
+        adjusted_music[:, fade_out_end:fade_out_end + dialog_samples] = (
+            music_waveform[:, fade_out_end:fade_out_end + dialog_samples] * target_volume
         )
 
         # 5. Fade up to 100% 3 seconds before dialog ends
-        fade_up_start = start_dialog + dialog_samples - fade_samples
+        fade_up_start = fade_out_end + dialog_samples - fade_samples
         fade_up = torch.linspace(target_volume, 1, fade_samples)
-        adjusted_music[:, fade_up_start:start_dialog + dialog_samples] = (
-            music_waveform[:, fade_up_start:start_dialog + dialog_samples] * fade_up
-        )
+        if fade_up_start < adjusted_music.size(1):  # Ensure fade-up range is valid
+            adjusted_music[:, fade_up_start:fade_out_end + dialog_samples] = (
+                music_waveform[:, fade_up_start:fade_out_end + dialog_samples] * fade_up
+            )
 
         # 6. Maintain 100% volume for full_volume_duration after dialog
-        end_dialog = start_dialog + dialog_samples
+        end_dialog = fade_out_end + dialog_samples
         adjusted_music[:, end_dialog:end_dialog + full_volume_samples] = music_waveform[
             :, end_dialog:end_dialog + full_volume_samples
         ]
@@ -449,20 +459,21 @@ class PodcastTTS:
         # 7. Fade out from 100% to 0% over fade_duration
         fade_out_start = end_dialog + full_volume_samples
         fade_out = torch.linspace(1, 0, fade_samples)
-        adjusted_music[:, fade_out_start:fade_out_start + fade_samples] = (
-            music_waveform[:, fade_out_start:fade_out_start + fade_samples] * fade_out
-        )
+        if fade_out_start < adjusted_music.size(1):  # Ensure fade-out range is valid
+            adjusted_music[:, fade_out_start:fade_out_start + fade_samples] = (
+                music_waveform[:, fade_out_start:fade_out_start + fade_samples] * fade_out
+            )
 
         # Trim the music to stop after fade-out
-        total_music_length = fade_out_start + fade_samples
+        total_music_length = min(fade_out_start + fade_samples, adjusted_music.size(1))
         adjusted_music = adjusted_music[:, :total_music_length]
 
         # Mix dialog audio with music
-        total_length = max(dialog_waveform.size(1) + start_dialog, adjusted_music.size(1))
+        total_length = max(dialog_waveform.size(1) + fade_out_end, adjusted_music.size(1))
         final_audio = torch.zeros((2, total_length))
 
         # Place the dialog after the music's full-volume phase
-        final_audio[:, start_dialog:start_dialog + dialog_waveform.size(1)] += dialog_waveform
+        final_audio[:, fade_out_end:fade_out_end + dialog_waveform.size(1)] += dialog_waveform
         final_audio[:, :adjusted_music.size(1)] += adjusted_music[:, :total_length]
 
         # Save the combined audio to the output file
@@ -475,4 +486,3 @@ class PodcastTTS:
         os.remove(dialog_audio_file)
 
         return filename
-
