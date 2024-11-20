@@ -4,23 +4,25 @@ import os, json, asyncio, inflect, re
 # Initialize inflect engine
 p = inflect.engine()
 
+RESERVED_TAGS = {"uv_break", "laugh", "lbreak", "break"}
+
 def remove_brackets(text):
     """
-    Removes brackets and formats specific tags in the text.
+    Removes unwanted brackets but preserves reserved tags.
 
     Args:
         text (str): The input text to clean.
 
     Returns:
-        str: The cleaned text with formatted tags.
+        str: The cleaned text with reserved tags preserved.
     """
-    text = re.sub(r'\[(uv_break|laugh|lbreak|break)\]', r' \1 ', text, re.I | re.S | re.M)
-    text = re.sub(r'\[|\]|！|：|｛|｝', '', text)
-    return re.sub(r'\s(uv_break|laugh|lbreak|break)(?=\s|$)', r' [\1] ', text)
+    text = re.sub(r'\[(?!\b(?:' + '|'.join(RESERVED_TAGS) + r')\b)(.*?)\]', '', text)  # Remove unwanted brackets
+    return re.sub(r'\s+', ' ', text).strip()  # Normalize spaces
 
 def normalize_text(input_string):
     """
-    Converts numbers to words and formats text for better readability.
+    Converts numbers to words and formats text for better readability,
+    while preserving reserved tags.
 
     Args:
         input_string (str): The text to normalize.
@@ -31,16 +33,21 @@ def normalize_text(input_string):
     def replacer(match):
         number = match.group(0)
         return p.number_to_words(int(number))
-    
+
+    # Preserve reserved tags while normalizing other parts
+    def preserve_tags(match):
+        tag = match.group(0)
+        return tag if tag[1:-1] in RESERVED_TAGS else replacer(match)
+
     result = re.sub(r'\d+', replacer, input_string)
     result = re.sub(r'(\w)-(\w)', r'\1 \2', result)
     return result
 
 def prepare_text_for_conversion(
-    text: str, 
-    min_line_length: int = 30, 
-    merge_size: int = 3, 
-    break_tag: str = "[uv_break]", 
+    text: str,
+    min_line_length: int = 30,
+    merge_size: int = 3,
+    break_tag: str = "[uv_break]",
     max_chunk_length: int = 200
 ) -> list:
     """
@@ -57,7 +64,8 @@ def prepare_text_for_conversion(
         list: A list of processed text chunks ready for conversion.
     """
     def clean_text(text):
-        text = re.sub(r"[^\w\s.,!?;:'\"-]", "", text)
+        # Remove unwanted characters while preserving reserved tags
+        text = re.sub(r"[^\w\s.,!?;:'\"-\[\]]", "", text)
         return re.sub(r"\s+", " ", text).strip()
 
     def split_by_punctuation(text, max_chunk_length):
