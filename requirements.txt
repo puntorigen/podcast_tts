@@ -1,3 +1,0 @@
-ChatTTS==0.2.1
-inflect==7.4.0
-pydub==0.25.1
