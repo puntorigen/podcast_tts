@@ -15,7 +15,8 @@ setup(
         "torchaudio",
         "ChatTTS",
         "inflect",
-        "pydub"
+        "pydub",
+        "regex"
     ],
     python_requires=">=3.8",
     classifiers=[

@@ -152,8 +152,14 @@ class PodcastTTS:
         self.chat = chat
         self.speed = speed
         self.sampling_rate = 24000
+
+        # User-defined voices directory
         self.voices_dir = os.path.join(os.getcwd(), "voices")
         os.makedirs(self.voices_dir, exist_ok=True)
+
+        # Default voices directory inside the package
+        self.default_voices_dir = os.path.join(os.path.dirname(__file__), "default_voices")
+        os.makedirs(self.default_voices_dir, exist_ok=True)
 
     async def create_speaker(self, speaker_name: str) -> str:
         """
@@ -185,7 +191,8 @@ class PodcastTTS:
 
     async def load_speaker(self, speaker_name: str) -> str:
         """
-        Loads a speaker profile.
+        Loads a speaker profile. First searches in the user-defined voices directory,
+        then in the package-level default voices directory.
 
         Args:
             speaker_name (str): The name of the speaker.
@@ -193,11 +200,19 @@ class PodcastTTS:
         Returns:
             str: The speaker profile data.
         """
-        file_path = os.path.join(self.voices_dir, f"{speaker_name}.txt")
-        if not os.path.exists(file_path):
-            print(f"Speaker '{speaker_name}' not found. Creating new profile.")
-            return await self.create_speaker(speaker_name)
-        return await asyncio.to_thread(self._read_from_file, file_path)
+        # Check in the user-defined voices directory
+        user_file_path = os.path.join(self.voices_dir, f"{speaker_name}.txt")
+        if os.path.exists(user_file_path):
+            return await asyncio.to_thread(self._read_from_file, user_file_path)
+
+        # Check in the package-level default voices directory
+        default_file_path = os.path.join(self.default_voices_dir, f"{speaker_name}.txt")
+        if os.path.exists(default_file_path):
+            return await asyncio.to_thread(self._read_from_file, default_file_path)
+
+        # If not found in either location, create a new speaker profile
+        print(f"Speaker '{speaker_name}' not found. Creating new profile.")
+        return await self.create_speaker(speaker_name)
 
     def _read_from_file(self, file_path: str) -> str:
         """
