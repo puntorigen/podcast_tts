@@ -1,5 +1,5 @@
 import ChatTTS, torch, torchaudio
-import os, json, asyncio, inflect, re
+import os, json, asyncio, inflect, re, regex
 from pydub import AudioSegment
 
 # Initialize inflect engine
@@ -26,8 +26,8 @@ def remove_brackets(text):
 
 def normalize_text(input_string):
     """
-    Converts numbers to words and formats text for better readability,
-    while preserving reserved tags.
+    Converts numbers to words, preserves contractions and reserved tags, replaces invalid characters with [uv_break],
+    ensures hyphens are replaced with spaces, and prevents consecutive [uv_break] instances.
 
     Args:
         input_string (str): The text to normalize.
@@ -35,29 +35,38 @@ def normalize_text(input_string):
     Returns:
         str: The normalized text.
     """
+    # Convert numbers to words, excluding numbers inside square brackets
     def replacer(match):
         number = match.group(0)
         return " " + p.number_to_words(int(number)) + " "
 
-    # Preserve reserved tags while normalizing other parts
-    def preserve_tags(match):
-        tag = match.group(0)
-        return tag if tag[1:-1] in RESERVED_TAGS else replacer(match)
+    # Match numbers not inside square brackets
+    result = regex.sub(r'(?<!\[.*)\b\d+\b(?!.*\])', replacer, input_string)
 
-    # Convert numbers to words, ensuring proper spacing
-    result = re.sub(r'\d+', preserve_tags, input_string)
-    
-    # Replace invalid characters with [uv_break]
-    result = re.sub(r'[!":]', ' [uv_break] ', result)
+    # Preserve contractions and possessives
+    result = regex.sub(r"(?<=\b\w)'(?=\w\b)", "'", result)  # Preserve contractions
+    result = regex.sub(r"(?<=\b\w)'(?=s\b)", "'", result)  # Preserve possessives
+
+    # Replace invalid characters with [uv_break] if there's no nearby [uv_break]
+    def replace_invalid(match):
+        char = match.group(0)
+        # If there's already a nearby [uv_break], replace with a space
+        return " [uv_break]" if "[uv_break]" not in input_string[max(0, match.start() - 10): match.end() + 10] else " "
+
+    result = regex.sub(r'[!":]', replace_invalid, result)
 
     # Replace hyphens with spaces
-    result = re.sub(r'-', ' ', result)
+    result = regex.sub(r'-', ' ', result)
 
-    # Ensure contractions are preserved (e.g., don't, it's)
-    result = re.sub(r"(?<=\b\w)'(?=\w\b)", "'", result)
+    # Consolidate repeated [uv_break]
+    result = re.sub(r'\[uv_break\](?:\s*\[uv_break\])+', '[uv_break]', result)
 
-    # Fix spacing around contractions, punctuation, and numbers
-    result = re.sub(r"\s+", " ", result).strip()
+    # Join separated `] [` into `][`
+    result = re.sub(r'\]\s*\[', '][', result)
+
+    # Fix spacing and strip extra whitespace
+    result = re.sub(r'\s+', ' ', result).strip()
+
     return result
 
 def prepare_text_for_conversion(
@@ -65,7 +74,7 @@ def prepare_text_for_conversion(
     min_line_length: int = 30,
     merge_size: int = 3,
     break_tag: str = "[uv_break]",
-    max_chunk_length: int = 200
+    max_chunk_length: int = 150
 ) -> list:
     """
     Prepares the input text for text-to-speech conversion by cleaning, splitting, and formatting.
@@ -80,18 +89,19 @@ def prepare_text_for_conversion(
     Returns:
         list: A list of processed text chunks ready for conversion.
     """
-    def clean_text(text):
-        # Remove unwanted characters while preserving reserved tags
-        text = re.sub(r"[^\w\s.,!?;:'\"-\[\]]", "", text)
-        return re.sub(r"\s+", " ", text).strip()
+    # Step 1: Normalize the text first
+    text = normalize_text(text)
 
     def split_by_punctuation(text, max_chunk_length):
+        """
+        Splits text by punctuation while ensuring chunks do not exceed max_chunk_length.
+        """
         punctuation_marks = ".!?;"
         result, start = [], 0
         for match in re.finditer(r"[{}]".format(re.escape(punctuation_marks)), text):
             end = match.end()
             if end - start > max_chunk_length:
-                result.extend([text[i:i + max_chunk_length] for i in range(start, end, max_chunk_length)])
+                result.append(text[start:end].strip())
                 start = end
             else:
                 result.append(text[start:end].strip())
@@ -100,26 +110,34 @@ def prepare_text_for_conversion(
             result.append(text[start:].strip())
         return result
 
-    cleaned_text = clean_text(text)
-    split_chunks = split_by_punctuation(cleaned_text, max_chunk_length)
+    # Split the text into chunks by punctuation
+    split_chunks = split_by_punctuation(text, max_chunk_length)
 
+    # Combine smaller chunks into larger ones while respecting min_line_length
     retext, short_text = [], ""
-    for line in split_chunks:
-        if len(line) < min_line_length:
-            short_text += f"{line} {break_tag} "
-            if len(short_text) > min_line_length:
+    for chunk in split_chunks:
+        if len(chunk) < min_line_length:
+            short_text += f"{chunk} {break_tag} "
+            if len(short_text) >= min_line_length:
                 retext.append(short_text.strip())
                 short_text = ""
         else:
-            retext.append(short_text + line)
-            short_text = ""
+            if short_text:
+                chunk = f"{short_text.strip()} {break_tag} {chunk}"
+                short_text = ""
+            retext.append(chunk)
 
-    if len(short_text) > min_line_length or not retext:
+    # If there's leftover short text, append it
+    if short_text:
         retext.append(short_text.strip())
-    elif short_text:
-        retext[-1] += f" {break_tag} {short_text.strip()}"
 
-    return [retext[i:i + merge_size] for i in range(0, len(retext), merge_size)]
+    # Group chunks into batches of merge_size
+    final_chunks = [
+        retext[i:i + merge_size] for i in range(0, len(retext), merge_size)
+    ]
+
+    return final_chunks
+
 
 class PodcastTTS:
     """
@@ -226,21 +244,23 @@ class PodcastTTS:
             top_K=20,
         )
         params_refine_text = ChatTTS.Chat.RefineTextParams(
-            prompt='[oral_0][laugh_3][break_4]',
+            prompt='[oral_2][laugh_0][break_6]',
             temperature=0.12,
+            max_new_token=500
         )
 
         # Generate audio for each chunk and collect the waveforms
         generated_wavs = []
         for i, chunk in enumerate(text_chunks):
-            chunk_text = " ".join(chunk)  # Combine lines in the chunk
+            chunk_text = "".join(chunk)  # Combine lines in the chunk
+            chunk_text = chunk_text.replace(".", ". ")  # Add space after periods
             normalized = normalize_text(chunk_text)
             print(f"Generating audio for chunk {i + 1}/{len(text_chunks)}: {normalized}")
 
             # Generate audio waveform for the chunk
             wavs = await asyncio.to_thread(
                 self.chat.infer,
-                normalize_text(chunk_text),
+                normalized,
                 lang="en",
                 skip_refine_text=False,
                 params_refine_text=params_refine_text,
