@@ -420,7 +420,7 @@ class PodcastTTS:
             music_waveform[:, start_dialog - fade_samples:start_dialog] * fade_to_target
         )
 
-        # 4. Continue at target_volume during dialog playback
+        # 4. Start the dialog and keep music at target_volume
         dialog_samples = int(dialog_length * dialog_sample_rate)
         adjusted_music[:, start_dialog:start_dialog + dialog_samples] = (
             music_waveform[:, start_dialog:start_dialog + dialog_samples] * target_volume
@@ -446,14 +446,16 @@ class PodcastTTS:
             music_waveform[:, fade_out_start:fade_out_start + fade_samples] * fade_out
         )
 
-        # Trim the music to end after the fade-out
+        # Trim the music to stop after fade-out
         total_music_length = fade_out_start + fade_samples
         adjusted_music = adjusted_music[:, :total_music_length]
 
         # Mix dialog audio with music
-        total_length = max(dialog_waveform.size(1), adjusted_music.size(1))
+        total_length = max(dialog_waveform.size(1) + start_dialog, adjusted_music.size(1))
         final_audio = torch.zeros((2, total_length))
-        final_audio[:, :dialog_waveform.size(1)] += dialog_waveform
+
+        # Place the dialog after the music's full-volume phase
+        final_audio[:, start_dialog:start_dialog + dialog_waveform.size(1)] += dialog_waveform
         final_audio[:, :adjusted_music.size(1)] += adjusted_music[:, :total_length]
 
         # Save the combined audio to the output file
