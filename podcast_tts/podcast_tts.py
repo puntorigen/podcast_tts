@@ -5,7 +5,11 @@ from pydub import AudioSegment
 # Initialize inflect engine
 p = inflect.engine()
 
-RESERVED_TAGS = {"uv_break", "laugh", "lbreak", "break"}
+RESERVED_TAGS = {
+    "uv_break", 
+    "laugh", "laugh_1", "laugh_2", "laugh_3", "laugh_4", "laugh_5",  
+    "lbreak", "break"
+}
 
 def remove_brackets(text):
     """
@@ -365,7 +369,7 @@ class PodcastTTS:
             texts (list[dict]): Dialog text data, with speakers and optional channels.
             music (list): Background music configuration [file, full_volume_duration, fade_duration, target_volume].
                         Example: ["background_music.mp3", 10, 3, 0.3].
-            filename (str): Output podcast filename.
+            filename (str): Output podcast filename (must end with .wav or .mp3).
             pause_duration (float): Duration of pause between dialog segments.
             normalize (bool): Normalize the dialog audio volume.
 
@@ -374,6 +378,9 @@ class PodcastTTS:
         """
         if not music or len(music) != 4:
             raise ValueError("Music argument must be a list of [file, full_volume_duration, fade_duration, target_volume].")
+
+        if not filename.endswith((".wav", ".mp3")):
+            raise ValueError("Filename must have a .wav or .mp3 extension.")
 
         music_file, full_volume_duration, fade_duration, target_volume = music
 
@@ -459,7 +466,10 @@ class PodcastTTS:
         final_audio[:, :adjusted_music.size(1)] += adjusted_music[:, :total_length]
 
         # Save the combined audio to the output file
-        await asyncio.to_thread(torchaudio.save, filename, final_audio, dialog_sample_rate)
+        if filename.endswith(".wav"):
+            await asyncio.to_thread(torchaudio.save, filename, final_audio, dialog_sample_rate, format="wav")
+        elif filename.endswith(".mp3"):
+            await asyncio.to_thread(torchaudio.save, filename, final_audio, dialog_sample_rate, format="mp3")
 
         # Clean up temporary files
         os.remove(dialog_audio_file)
