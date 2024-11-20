@@ -2,6 +2,14 @@
 
 `podcast_tts` is a Python library for generating podcasts and dialogues using text-to-speech (TTS). It supports multiple speakers, background music, and precise audio mixing for professional-quality results.
 
+### Example Podcast
+You can listen to the example podcast below:
+
+<audio controls>
+  <source src="https://github.com/puntorigen/podcast_tts/raw/main/example-podcast.mp3" type="audio/mpeg">
+  Your browser does not support the audio element.
+</audio>
+
 ## Features
 
 - **Multi-Speaker Support**: Generate dialogues with distinct speaker profiles.
