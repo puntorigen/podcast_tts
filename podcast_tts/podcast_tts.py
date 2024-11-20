@@ -1,5 +1,6 @@
 import ChatTTS, torch, torchaudio
 import os, json, asyncio, inflect, re
+from pydub import AudioSegment
 
 # Initialize inflect engine
 p = inflect.engine()
@@ -353,3 +354,108 @@ class PodcastTTS:
         if current_rms > 0:
             waveform *= target_rms / current_rms
         return waveform
+
+    async def generate_podcast(
+        self,
+        texts: list[dict],
+        music: list,
+        filename: str = "podcast.wav",
+        pause_duration: float = 0.5,
+        normalize: bool = True,
+    ):
+        """
+        Generates a podcast WAV file by combining TTS-generated dialog and background music.
+
+        Args:
+            texts (list[dict]): An array of objects where each key is a speaker and value is an array.
+                                Example: {"Speaker1": ["Hello", "left"]}.
+            music (list): A list where:
+                          - music[0] is the path to the music file (MP3 or WAV).
+                          - music[1] is the duration (in seconds) the music plays at full volume before dialog starts.
+                          - music[2] is the fade duration in seconds (for fading out from full to sustained volume).
+                          - music[3] is the sustained volume level (0.0 to 1.0).
+            filename (str): The name of the output podcast file.
+            pause_duration (float): Duration of the pause between roles in seconds.
+            normalize (bool): Whether to normalize the volume of the TTS segments.
+
+        Returns:
+            str: The filename of the generated podcast.
+        """
+        if not music or len(music) != 4:
+            raise ValueError("The 'music' argument must be a list of [music_path, full_volume_duration, fade_duration, volume].")
+
+        music_path, full_volume_duration, fade_duration, music_volume = music
+        if not os.path.exists(music_path):
+            raise FileNotFoundError(f"Music file '{music_path}' not found.")
+        if not (0.0 <= music_volume <= 1.0):
+            raise ValueError("Music volume must be between 0.0 and 1.0.")
+        if fade_duration < 0 or full_volume_duration < 0:
+            raise ValueError("Fade duration and full-volume duration must be non-negative.")
+
+        # Step 1: Generate the dialog WAV using `generate_dialog_wav`
+        dialog_filename = "dialog_temp.wav"
+        await self.generate_dialog_wav(
+            texts, filename=dialog_filename, pause_duration=pause_duration, normalize=normalize
+        )
+
+        # Step 2: Load the generated dialog audio and the music
+        dialog_audio = AudioSegment.from_file(dialog_filename)
+        music_audio = AudioSegment.from_file(music_path)
+
+        # Step 3: Handle music fade-in, full volume, and fade-out to sustained volume
+        fade_in_milliseconds = int(fade_duration * 1000)
+        full_volume_milliseconds = int(full_volume_duration * 1000)
+        fade_to_sustained_milliseconds = fade_in_milliseconds  # Use the same fade duration for drop to sustained volume
+        fade_out_milliseconds = fade_in_milliseconds  # Same duration for the final fade-out
+
+        # Apply fade-in
+        music_audio = music_audio.fade_in(fade_in_milliseconds)
+
+        # Split the music into three parts:
+        # 1. Initial full-volume part
+        # 2. Fade-out to sustained volume part
+        # 3. Remaining music at sustained volume
+        music_start = music_audio[:full_volume_milliseconds]
+        music_to_fade = music_audio[full_volume_milliseconds: full_volume_milliseconds + fade_to_sustained_milliseconds]
+        music_remainder = music_audio[full_volume_milliseconds + fade_to_sustained_milliseconds:]
+
+        # Fade-out to sustained volume
+        music_to_fade = music_to_fade.fade_out(fade_to_sustained_milliseconds).apply_gain(-(1 - music_volume) * 40)
+
+        # Adjust sustained volume
+        music_remainder = music_remainder - (1 - music_volume) * 40
+
+        # Combine the parts back together
+        music_audio = music_start + music_to_fade + music_remainder
+
+        # Append silence to dialog for the initial full-volume duration
+        silent_gap = AudioSegment.silent(duration=full_volume_milliseconds)
+        dialog_audio = silent_gap + dialog_audio
+
+        # Apply fade-out to the music's last part
+        if len(music_audio) > len(dialog_audio):
+            fade_out_start = len(dialog_audio) - fade_out_milliseconds
+            if fade_out_start > 0:
+                music_audio = (
+                    music_audio[:fade_out_start]
+                    + music_audio[fade_out_start:].fade_out(fade_out_milliseconds)
+                )
+
+        # Step 4: Loop the music if it's shorter than the dialog
+        if len(music_audio) < len(dialog_audio):
+            music_audio = music_audio * ((len(dialog_audio) // len(music_audio)) + 1)
+
+        # Trim the music to the dialog duration
+        music_audio = music_audio[: len(dialog_audio)]
+
+        # Step 5: Overlay the dialog onto the music
+        podcast_audio = music_audio.overlay(dialog_audio)
+
+        # Step 6: Export the final podcast audio
+        podcast_audio.export(filename, format="wav")
+
+        # Clean up temporary files
+        os.remove(dialog_filename)
+
+        print(f"Podcast saved to {filename}")
+        return filename
