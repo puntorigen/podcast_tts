@@ -4,7 +4,11 @@
 
 ### Example Podcast
 You can listen to the example podcast below:<br/>
-https://github.com/puntorigen/podcast_tts/raw/main/example-podcast.mp3
+
+https://github.com/user-attachments/assets/baf6aa80-2d8f-4a2c-8159-efa9d9596693
+
+
+
 
 ## Features
 
