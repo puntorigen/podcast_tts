@@ -449,8 +449,22 @@ class PodcastTTS:
             music_waveform = torch.cat([music_waveform, music_waveform], dim=0)
 
         # Repeat the music if it's shorter than the required duration
-        dialog_samples = dialog_waveform.size(1)
-        total_needed_length = dialog_samples + int((full_volume_duration + fade_duration) * dialog_sample_rate)
+        # dialog_samples = dialog_waveform.size(1)
+        # Calculate total needed length dynamically
+        fade_samples = int(fade_duration * dialog_sample_rate)  # Fade duration in samples
+        full_volume_samples = int(full_volume_duration * dialog_sample_rate)  # Full volume duration in samples
+        post_dialog_full_volume_samples = int(10 * dialog_sample_rate)  # 10 seconds at 100% volume
+        dialog_samples = dialog_waveform.size(1)  # Number of samples in the dialog
+
+        total_needed_length = (
+            fade_samples  # Initial fade-in
+            + full_volume_samples  # Full volume before dialog
+            + dialog_samples  # Length of dialog
+            + fade_samples  # Fade-up to 100% after dialog
+            + post_dialog_full_volume_samples  # Full volume for 10 seconds
+            + fade_samples  # Final fade-out
+        )
+        #total_needed_length = dialog_samples + int((full_volume_duration + fade_duration) * dialog_sample_rate)
         while music_waveform.size(1) < total_needed_length:
             music_waveform = torch.cat([music_waveform, music_waveform], dim=1)
 
@@ -461,8 +475,8 @@ class PodcastTTS:
         if dialog_waveform.size(0) == 1:
             dialog_waveform = torch.cat([dialog_waveform, dialog_waveform], dim=0)
 
-        fade_samples = int(fade_duration * dialog_sample_rate)
-        full_volume_samples = int(full_volume_duration * dialog_sample_rate)
+        #fade_samples = int(fade_duration * dialog_sample_rate)
+        #full_volume_samples = int(full_volume_duration * dialog_sample_rate)
 
         # Prepare music with fade in, fade out, and volume adjustments
         adjusted_music = torch.zeros_like(music_waveform)
