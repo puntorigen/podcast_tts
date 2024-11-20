@@ -1,5 +1,7 @@
 import ChatTTS, torch, torchaudio
 import os, json, asyncio, inflect, re, regex
+import requests
+from hashlib import md5
 from pydub import AudioSegment
 
 # Initialize inflect engine
@@ -161,6 +163,42 @@ class PodcastTTS:
         self.default_voices_dir = os.path.join(os.path.dirname(__file__), "default_voices")
         os.makedirs(self.default_voices_dir, exist_ok=True)
 
+        # Cache directory for downloaded files
+        self.cache_dir = os.path.join(os.getcwd(), "cache")
+        os.makedirs(self.cache_dir, exist_ok=True)
+
+    def _download_and_cache_file(self, url: str) -> str:
+        """
+        Downloads a file from a URL and caches it locally.
+
+        Args:
+            url (str): The URL to download.
+
+        Returns:
+            str: The path to the cached file.
+        """
+        # Generate a unique filename based on the URL
+        file_hash = md5(url.encode('utf-8')).hexdigest()
+        cached_file_path = os.path.join(self.cache_dir, f"{file_hash}.mp3")
+
+        # Check if the file is already cached
+        if os.path.exists(cached_file_path):
+            print(f"Using cached file for URL: {url}")
+            return cached_file_path
+
+        # Download the file
+        print(f"Downloading music from URL: {url}")
+        response = requests.get(url, stream=True)
+        if response.status_code == 200:
+            with open(cached_file_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=1024):
+                    f.write(chunk)
+            print(f"File cached at: {cached_file_path}")
+        else:
+            raise ValueError(f"Failed to download file from URL: {url} (status code: {response.status_code})")
+
+        return cached_file_path
+    
     async def create_speaker(self, speaker_name: str) -> str:
         """
         Creates a new speaker profile.
@@ -429,8 +467,14 @@ class PodcastTTS:
         if not filename.endswith((".wav", ".mp3")):
             raise ValueError("Filename must have a .wav or .mp3 extension.")
 
-        music_file, full_volume_duration, fade_duration, target_volume = music
+        music_file_or_url, full_volume_duration, fade_duration, target_volume = music
 
+        # Check if the music source is a URL or a local file
+        if music_file_or_url.startswith("http"):
+            music_file = self._download_and_cache_file(music_file_or_url)
+        else:
+            music_file = music_file_or_url
+            
         # Generate the dialog audio
         dialog_audio_file = "dialog_temp.wav"
         await self.generate_dialog_wav(texts, dialog_audio_file, pause_duration, normalize)
