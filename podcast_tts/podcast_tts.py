@@ -37,15 +37,27 @@ def normalize_text(input_string):
     """
     def replacer(match):
         number = match.group(0)
-        return p.number_to_words(int(number))
+        return " " + p.number_to_words(int(number)) + " "
 
     # Preserve reserved tags while normalizing other parts
     def preserve_tags(match):
         tag = match.group(0)
         return tag if tag[1:-1] in RESERVED_TAGS else replacer(match)
 
-    result = re.sub(r'\d+', replacer, input_string)
-    result = re.sub(r'(\w)-(\w)', r'\1 \2', result)
+    # Convert numbers to words, ensuring proper spacing
+    result = re.sub(r'\d+', preserve_tags, input_string)
+    
+    # Replace invalid characters with [uv_break]
+    result = re.sub(r'[!":]', ' [uv_break] ', result)
+
+    # Replace hyphens with spaces
+    result = re.sub(r'-', ' ', result)
+
+    # Ensure contractions are preserved (e.g., don't, it's)
+    result = re.sub(r"(?<=\b\w)'(?=\w\b)", "'", result)
+
+    # Fix spacing around contractions, punctuation, and numbers
+    result = re.sub(r"\s+", " ", result).strip()
     return result
 
 def prepare_text_for_conversion(
