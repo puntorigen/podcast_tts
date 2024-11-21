@@ -265,14 +265,15 @@ class PodcastTTS:
         with open(file_path, "r") as f:
             return f.read()
 
-    async def generate_wav(self, text: str, speaker: str, filename: str = "generated_tts.wav", channel: str = "both"):
+    async def generate_tts(self, text: str, speaker: str, filename: str = "generated_tts.wav", channel: str = "both"):
         """
-        Generates a WAV file from text using a specified speaker profile, with channel control.
+        Generates a TTS file from text using a specified speaker profile, with channel control.
+        Supports output formats based on the specified file extension (.mp3 or .wav).
 
         Args:
             text (str): The input text to synthesize.
             speaker (str): The speaker profile as a plain string.
-            filename (str): The output WAV file name (default: "generated_tts.wav").
+            filename (str): The output file name (default: "generated_tts.mp3").
             channel (str): The audio channel ("left", "right", or "both").
 
         Raises:
@@ -284,6 +285,8 @@ class PodcastTTS:
             raise ValueError("Speaker data cannot be empty.")
         if channel not in {"left", "right", "both"}:
             raise ValueError("Channel must be 'left', 'right', or 'both'.")
+        if not filename.endswith((".mp3", ".wav")):
+            raise ValueError("Filename must have a valid extension: '.mp3' or '.wav'.")
 
         # Prepare text chunks using prepare_text_for_conversion
         text_chunks = prepare_text_for_conversion(text)
@@ -340,6 +343,7 @@ class PodcastTTS:
                 filename,
                 merged_waveform,
                 self.sampling_rate,
+                format="wav" if filename.endswith(".wav") else "mp3",
             )
         except TypeError as e:
             # Fallback for older versions of torchaudio
@@ -349,6 +353,7 @@ class PodcastTTS:
                     filename,
                     merged_waveform.squeeze(0),
                     self.sampling_rate,
+                    format="wav" if filename.endswith(".wav") else "mp3",
                 )
             else:
                 raise RuntimeError(f"Failed to save WAV file: {e}")
@@ -371,7 +376,7 @@ class PodcastTTS:
         right = waveform if channel in {"right", "both"} else torch.zeros_like(waveform)
         return torch.cat([left, right], dim=0)
 
-    async def generate_dialog_wav(
+    async def generate_dialog(
         self, 
         texts: list[dict], 
         filename: str = "generated_dialog.wav", 
@@ -379,22 +384,25 @@ class PodcastTTS:
         normalize: bool = True
     ):
         """
-        Generates a single WAV file with a sequence of audio clips from dialog texts.
+        Generates a single file with a sequence of audio clips from dialog texts.
+        Supports output formats based on the specified file extension (.mp3 or .wav).
 
         Args:
             texts (list[dict]): An array of objects where each key is a speaker and value is an array of strings.
                                 Example: {"Speaker1": ["Hello", "left"]}.
-            filename (str): The name of the output WAV file.
+            filename (str): The name of the output file.
             pause_duration (float): Duration of the pause between roles in seconds.
             normalize (bool): Whether to normalize the volume of each audio segment
 
         Returns:
-            str: The filename of the merged WAV file.
+            str: The filename of the merged file.
         """
         if not texts:
             raise ValueError("The texts array cannot be empty.")
         if pause_duration < 0:
             raise ValueError("Pause duration must be non-negative.")
+        if not filename.endswith((".mp3", ".wav")):
+            raise ValueError("Filename must have a valid extension: '.mp3' or '.wav'.")
         
         generated_wavs = []
         for entry in texts:
@@ -411,7 +419,7 @@ class PodcastTTS:
             
             speaker_profile = await self.load_speaker(speaker_name)
             temp_filename = f"{speaker_name}_temp.wav"
-            await self.generate_wav(text, speaker_profile, temp_filename, channel)
+            await self.generate_tts(text, speaker_profile, temp_filename, channel)
 
             waveform, sample_rate = torchaudio.load(temp_filename)
             if normalize:
@@ -425,7 +433,13 @@ class PodcastTTS:
                 generated_wavs.append(silence)
 
         merged_waveform = torch.cat(generated_wavs, dim=1)
-        await asyncio.to_thread(torchaudio.save, filename, merged_waveform, self.sampling_rate)
+        await asyncio.to_thread(
+            torchaudio.save,
+            filename,
+            merged_waveform,
+            self.sampling_rate,
+            format="wav" if filename.endswith(".wav") else "mp3",
+        )
         return filename
 
     def _normalize_volume(self, waveform: torch.Tensor, target_rms: float = 0.1) -> torch.Tensor:
@@ -477,7 +491,7 @@ class PodcastTTS:
             
         # Generate the dialog audio
         dialog_audio_file = "dialog_temp.wav"
-        await self.generate_dialog_wav(texts, dialog_audio_file, pause_duration, normalize)
+        await self.generate_dialog(texts, dialog_audio_file, pause_duration, normalize)
 
         # Load dialog audio and music
         dialog_waveform, dialog_sample_rate = torchaudio.load(dialog_audio_file)

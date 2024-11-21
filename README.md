@@ -39,7 +39,7 @@ from podcast_tts import PodcastTTS
 
 async def main():
     tts = PodcastTTS(speed=5)
-    await tts.generate_wav(
+    await tts.generate_tts(
         text="Hello! Welcome to our podcast.",
         speaker="male1",
         filename="output_audio.wav",
@@ -126,7 +126,7 @@ You can load any speaker profile by specifying its filename (without the .txt ex
 
 ```python
 # Assuming a speaker profile "Host.txt" exists in the voices subfolder
-await tts.generate_wav("This is a test for an existing speaker.", "Host", "existing_speaker.wav")
+await tts.generate_tts("This is a test for an existing speaker.", "Host", "existing_speaker.wav")
 ```
 
 ## Additional Notes
