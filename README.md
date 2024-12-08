@@ -26,6 +26,9 @@ https://github.com/user-attachments/assets/baf6aa80-2d8f-4a2c-8159-efa9d9596693
 ## Installation
 
 ```bash
+# ensure to have sox, or ffmpeg installed
+brew install sox
+# install the package
 pip install podcast_tts
 ```
 
