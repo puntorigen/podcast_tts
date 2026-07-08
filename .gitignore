@@ -1,3 +1,11 @@
+# OS / editor junk
+.DS_Store
+
+# Runtime-generated voice profiles and downloaded-music cache
+# (example assets like example-podcast.mp3 / music1.mp3 stay tracked)
+/voices/
+/cache/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

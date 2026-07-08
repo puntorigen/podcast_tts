@@ -1,5 +1,7 @@
 import asyncio
-from podcast_tts.podcast_tts import PodcastTTS
+
+from podcast_tts import PodcastTTS
+
 
 async def main():
     tts = PodcastTTS(speed=5)
@@ -20,7 +22,7 @@ async def main():
         {"male1": ["Same here! [uv_break] Keep innovating, everyone.", "left"]},
     ]
 
-    # Generate the dialog as a single audio file
+    # Generate the podcast (dialog + background music) as a single audio file
     await tts.generate_podcast(
         texts, 
         music=["music1.mp3", 10, 3, 0.3], 

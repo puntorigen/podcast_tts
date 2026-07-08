@@ -1,5 +1,7 @@
 import asyncio
-from podcast_tts.podcast_tts import PodcastTTS
+
+from podcast_tts import PodcastTTS
+
 
 async def main():
     tts = PodcastTTS(speed=5)

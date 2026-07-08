@@ -1,3 +1,81 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "podcast_tts"
+version = "0.1.0"
+description = "Generate natural multi-speaker podcasts and dialogues with pluggable TTS engines (ChatTTS, Chatterbox Multilingual, Kokoro). English and Spanish."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Pablo Schaffner", email = "pablo@puntorigen.com" }]
+keywords = [
+    "tts",
+    "text-to-speech",
+    "podcast",
+    "dialogue",
+    "chattts",
+    "chatterbox",
+    "kokoro",
+    "spanish",
+    "voice-cloning",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Intended Audience :: Developers",
+]
+dependencies = [
+    "torch>=2.1",
+    "torchaudio>=2.1",
+    "numpy>=1.24",
+    "soundfile>=0.12",
+    "num2words>=0.5.13",
+    "regex>=2023.0.0",
+    "requests>=2.28",
+]
+
+[project.optional-dependencies]
+# Engine backends (install the one you need):
+chattts = ["ChatTTS>=0.2.1"]
+chatterbox = ["chatterbox-tts>=0.1.2"]
+kokoro = ["kokoro>=0.9.4"]
+all = ["ChatTTS>=0.2.1", "chatterbox-tts>=0.1.2", "kokoro>=0.9.4"]
+# Optional web UI:
+demo = ["gradio>=4"]
+# Developer tooling:
+dev = ["ruff>=0.6", "pytest>=8", "pytest-asyncio>=0.23", "mypy>=1.8", "build>=1.2", "twine>=5"]
+
+[project.urls]
+Homepage = "https://github.com/puntorigen/podcast_tts"
+Repository = "https://github.com/puntorigen/podcast_tts"
+Issues = "https://github.com/puntorigen/podcast_tts/issues"
+
+[project.scripts]
+podcast-tts = "podcast_tts.cli:main"
+podcast-tts-demo = "podcast_tts.demo:main"
+
+[tool.setuptools.packages.find]
+include = ["podcast_tts*"]
+
+[tool.setuptools.package-data]
+podcast_tts = ["default_voices/*.txt"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
