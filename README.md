@@ -246,14 +246,12 @@ git push origin v0.1.1
 The workflow checks the tag matches the version, builds the sdist/wheel, and
 uploads with `skip-existing` (so re-runs never clobber an existing release).
 
-**One-time setup** — pick one:
-
-- **Trusted publishing (recommended, no secrets):** on PyPI, add a trusted
-  publisher for this repo pointing at the `release.yml` workflow and the `pypi`
-  environment. See the [PyPI guide](https://docs.pypi.org/trusted-publishers/).
-- **API token:** create a `pypi` environment (or remove that line) and swap the
-  publish step for a `PYPI_API_TOKEN` secret via
-  `twine upload -u __token__ -p "$PYPI_API_TOKEN" dist/*`.
+**Authentication:** the publish step uses a `PYPI_API_TOKEN` repository secret
+(Settings → Secrets and variables → Actions). Create a PyPI API token scoped to
+this project and store it there. To switch to
+[trusted publishing](https://docs.pypi.org/trusted-publishers/) instead, drop
+the `password:` line from the publish step, add `permissions: id-token: write`,
+and register the publisher on PyPI.
 
 ## Contributing
 

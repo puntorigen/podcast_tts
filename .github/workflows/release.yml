@@ -46,11 +46,6 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
-    # Configure a "pypi" environment with a trusted publisher on PyPI, or
-    # remove this line and use a PYPI_API_TOKEN secret (see README).
-    environment: pypi
-    permissions:
-      id-token: write # OIDC token for PyPI trusted publishing
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -60,4 +55,5 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
           skip-existing: true
