@@ -3,7 +3,7 @@
 from .core import PodcastTTS
 from .engines import AVAILABLE_ENGINES, TTSEngine, VoiceProfile, get_engine
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "PodcastTTS",
