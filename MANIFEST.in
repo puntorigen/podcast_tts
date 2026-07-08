@@ -1,0 +1,6 @@
+# Sample media (*.mp3 / *.mp4) and branding assets stay tracked in git so the
+# README renders them on GitHub, but they are excluded from the published
+# sdist/wheel so `pip install podcast_tts` stays lightweight.
+global-exclude *.mp3 *.mp4 *.wav *.m4a .DS_Store
+prune assets
+prune examples
